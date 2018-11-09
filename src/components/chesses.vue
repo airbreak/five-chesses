@@ -77,7 +77,17 @@ export default {
      * 点击方格落棋
      */
     clickGridToAddChess (e) {
-      console.log(e)
+      let [x, y] = this.getMousePos(document.getElementById('my-canvas'), e)
+
+    },
+    /**
+     * 获取点击的位置
+     */
+    getMousePos (canvas, event) {
+      var rect = canvas.getBoundingClientRect()
+      var x = event.clientX - rect.left * (canvas.width / rect.width)
+      var y = event.clientY - rect.top * (canvas.height / rect.height)
+      return [x, y]
     }
   }
 }
