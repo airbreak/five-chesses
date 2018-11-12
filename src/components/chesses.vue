@@ -10,16 +10,19 @@ export default {
   data () {
     return {
       gridNum: 10,
-      perGridWidth: 100
+      perGridWidth: 100,
+      gridPointsArr: [],
+      attacker: 0 // 出击方，初始默认白棋
     }
   },
   mounted () {
     this.$nextTick(() => {
-      this.init()
+      this.initGridPointsArr()
+      this.initCanvasGrid()
     })
   },
   methods: {
-    init () {
+    initCanvasGrid () {
       let canvas = document.getElementById('my-canvas')
       canvas.width = canvas.height = this.gridNum * this.perGridWidth
       this.ctx = canvas.getContext('2d')
@@ -57,28 +60,69 @@ export default {
      * 初始化两个棋子
      */
     initChess () {
-      let x = this.gridNum * this.perGridWidth / 2
-      this.drawChess(x, x)
-      this.drawChess(x, x + this.perGridWidth, 1)
+      let x = Math.round(this.gridNum / 2)
+      this.drawChess(x, x, false)
+      this.drawChess(x, x + 1, false)
+    },
+    /**
+     * 初始化二维数组，记录是否放有棋子
+     */
+    initGridPointsArr () {
+      let arr = []
+      for (let i = 0; i < this.gridNum; i++) {
+        arr.push([])
+        for (let j = 0; j < this.gridNum; j++) {
+          arr[i].push({attacker: -1, drawed: 0})
+        }
+      }
+      this.gridPointsArr = arr
     },
     /**
      * 画棋子
-     * @param {type} int  0:白棋，1：黑棋
+     * @param {x} int  格子下标
+     * @param {y} int  格子下标
      */
-    drawChess (x, y, type = 0) {
-      this.ctx.strokeStyle = ['white', 'black'][type]
+    drawChess (x, y, checkWin = true) {
+      this.execDrawChess(x, y)
+      this.gridPointsArr[x][y].drawed = 1
+      this.gridPointsArr[x][y].attacker = this.attacker
+      if (checkWin) {
+        if (this.checkIsWin(x, y)) {
+          alert('win')
+          return
+        }
+      }
+      this.attacker = this.attacker ? 0 : 1
+    },
+    /**
+     * 画棋子
+     * @param {x} int  格子下标
+     * @param {y} int  格子下标
+     */
+    execDrawChess (x, y) {
+      this.ctx.strokeStyle = ['white', 'black'][this.attacker]
       this.ctx.fillStyle = this.ctx.strokeStyle
       this.ctx.beginPath()
-      this.ctx.arc(x, y, 30, 0, 2 * Math.PI)
+      this.ctx.arc(x * this.perGridWidth, y * this.perGridWidth, 30, 0, 2 * Math.PI)
       this.ctx.stroke()
       this.ctx.fill()
     },
     /**
      * 点击方格落棋
+     * 获取点击的坐标，落到取到最近的交点处
      */
     clickGridToAddChess (e) {
       let [x, y] = this.getMousePos(document.getElementById('my-canvas'), e)
-
+      if (x > this.gridNum * this.perGridWidth || y > this.gridNum * this.perGridWidth) {
+        return
+      }
+      let diffX = x / this.perGridWidth
+      let diffY = y / this.perGridWidth
+      diffX = Math.round(diffX)
+      diffY = Math.round(diffY)
+      if (!this.checkIsDrawedChess(diffX, diffY)) {
+        this.drawChess(diffX, diffY, 1)
+      }
     },
     /**
      * 获取点击的位置
@@ -88,6 +132,34 @@ export default {
       var x = event.clientX - rect.left * (canvas.width / rect.width)
       var y = event.clientY - rect.top * (canvas.height / rect.height)
       return [x, y]
+    },
+    /**
+     * 是否已经放有棋子
+     */
+    checkIsDrawedChess (x, y) {
+      return this.gridPointsArr[x][y].drawed === 1
+    },
+    /**
+     * 检验某方是否胜利
+     * 具体做法：以当前点为中心，确定8个方向 →、←、↑、↓，东北、东南、西南、东北。是否有颜色一致并且个数连续累加为5
+     */
+    checkIsWin (x, y, num = 1) {
+      let isWin = false
+      let nextPoint = this.gridPointsArr[x + 1][y]
+      let drawed = nextPoint.drawed
+      if (drawed) {
+        if (nextPoint.attacker === this.attacker) {
+          num++
+          if (num === 5) {
+            isWin = true
+          } else {
+            if (x < this.gridNum) {
+              this.checkIsWin(x + 1, y, num)
+            }
+          }
+        }
+      }
+      return isWin
     }
   }
 }
