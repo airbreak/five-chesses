@@ -12,7 +12,14 @@ export default {
       gridNum: 10,
       perGridWidth: 100,
       gridPointsArr: [],
-      attacker: 0 // 出击方，初始默认白棋
+      attacker: 0, // 出击方，初始默认白棋
+      attackerChessCounts: 1, // 出击方累积连续值
+      // 当前落棋点 方便判断是否赢
+      currentPoint: {
+        x: -1,
+        y: -1
+      },
+      isRedirection: false // 是否已经反向查找了
     }
   },
   mounted () {
@@ -61,11 +68,15 @@ export default {
      */
     initChess () {
       let x = Math.round(this.gridNum / 2)
-      this.drawChess(x, x, false)
-      this.drawChess(x, x + 1, false)
+      this.drawChess(x, x)
+      this.swithAttacker()
+
+      this.drawChess(x, x + 1)
+      this.swithAttacker()
     },
     /**
      * 初始化二维数组，记录是否放有棋子
+     * 默认都为落棋，进攻方为 -1
      */
     initGridPointsArr () {
       let arr = []
@@ -77,22 +88,19 @@ export default {
       }
       this.gridPointsArr = arr
     },
+    // 进攻方对换
+    swithAttacker () {
+      this.attacker = this.attacker ? 0 : 1 // 进攻方对换
+    },
     /**
      * 画棋子
      * @param {x} int  格子下标
      * @param {y} int  格子下标
      */
-    drawChess (x, y, checkWin = true) {
-      this.execDrawChess(x, y)
-      this.gridPointsArr[x][y].drawed = 1
-      this.gridPointsArr[x][y].attacker = this.attacker
-      if (checkWin) {
-        if (this.checkIsWin(x, y)) {
-          alert('win')
-          return
-        }
-      }
-      this.attacker = this.attacker ? 0 : 1
+    drawChess (x, y) {
+      this.execDrawChess(x, y) // 画布绘制棋子
+      this.gridPointsArr[x][y].drawed = 1 // 已落棋
+      this.gridPointsArr[x][y].attacker = this.attacker // 记录进攻方，也就是棋子颜色
     },
     /**
      * 画棋子
@@ -121,8 +129,20 @@ export default {
       diffX = Math.round(diffX)
       diffY = Math.round(diffY)
       if (!this.checkIsDrawedChess(diffX, diffY)) {
-        this.drawChess(diffX, diffY, 1)
+        // 记录单前的落棋点，方便判断是否赢
+        this.currentPoint.x = x
+        this.currentPoint.y = y
+        this.attackerChessCounts = 1 // 累计同颜色棋子个数
+        this.isRedirection = false // 回复未反向查找
+        this.drawChess(diffX, diffY, true)
+        // 检测是否赢
+        let flag = this.checkIsWin(diffX, diffY, 4) // 先检测正西方是否有连续5个同色棋子
+        if (flag) {
+          alert('win')
+          return
+        }
       }
+      this.swithAttacker() // 进攻方对换
     },
     /**
      * 获取点击的位置
@@ -141,25 +161,133 @@ export default {
     },
     /**
      * 检验某方是否胜利
-     * 具体做法：以当前点为中心，确定8个方向 →、←、↑、↓，东北、东南、西南、东北。是否有颜色一致并且个数连续累加为5
+     * 具体做法：以当前点为中心，确定8个方向 →、东北、↑、西北、←、西南、↓、东南，逆时针判断。是否有颜色一致并且个数连续累加为5
+     * 某个方向数量不够时，则查找反方向，数值继续累积，
      */
-    checkIsWin (x, y, num = 1) {
+    checkIsWin (x, y, direction) {
       let isWin = false
-      let nextPoint = this.gridPointsArr[x + 1][y]
-      let drawed = nextPoint.drawed
+      let nextPoint = this.getNextPoint(x, y, direction)
+      // 判断是否反向查找
+      if (!this.isRedirection && !nextPoint.continue) {
+        nextPoint = this.redirectToFindPoint(direction) // 反向查找统计
+      }
+      let nextPointInfo = this.gridPointsArr[nextPoint.x][nextPoint.y]
+      let drawed = nextPointInfo.drawed
       if (drawed) {
-        if (nextPoint.attacker === this.attacker) {
-          num++
-          if (num === 5) {
+        if (nextPointInfo.attacker === this.attacker) {
+          this.attackerChessCounts++
+          if (this.attackerChessCounts === 5) {
             isWin = true
+            return isWin
           } else {
-            if (x < this.gridNum) {
-              this.checkIsWin(x + 1, y, num)
-            }
+            return this.checkIsWin(nextPoint.x, nextPoint.y, direction)
           }
         }
       }
-      return isWin
+      // 反向查找
+      nextPoint = this.redirectToFindPoint(direction) // 反向查找统计
+      return this.checkIsWin(nextPoint.x, nextPoint.y, direction)
+      // return isWin
+    },
+    /**
+     * 反向查找统计
+     */
+    redirectToFindPoint (direction) {
+      this.isRedirection = !this.isRedirection // 标识已反向查找
+      direction += 4
+      return this.getNextPoint(this.currentPoint.x, this.currentPoint.y, direction)
+    },
+    /**
+     * 获取下一点下标
+     * @param {x} int 当前判断点坐标
+     * @param {y} int 当前判断点坐标
+     * @param {direction} int 当前判断方向，已正东开始 逆时针 0~7
+     * */
+    getNextPoint (x, y, direction) {
+      let fn = null
+      switch (direction % 8) {
+        case 0:
+          fn = this.getEastNextPoint
+          break
+        case 1:
+          fn = this.getEastNorthNextPoint
+          break
+        case 2:
+          fn = this.getNorthNextPoint
+          break
+        case 3:
+          fn = this.getWestNorthNextPoint
+          break
+        case 4:
+          fn = this.getWestNextPoint
+          break
+        case 5:
+          fn = this.getWestSouthNextPoint
+          break
+        case 6:
+          fn = this.getSouthNextPoint
+          break
+        default:
+          fn = this.getEastSouthNextPoint
+          break
+      }
+      return fn(x, y)
+    },
+    // 正东方向查找下一点
+    getEastNextPoint (x, y) {
+      if (x < this.gridNum) {
+        x++
+        return {
+          x,
+          y,
+          continue: true
+        }
+      } else {
+        return {
+          continue: false
+        }
+      }
+    },
+    // 正西方向查找下一点
+    getWestNextPoint (x, y) {
+      if (x > 0) {
+        x--
+        return {
+          x,
+          y,
+          continue: true
+        }
+      } else {
+        return {
+          continue: false
+        }
+      }
+    },
+    // 正北方向查找下一点
+    getNorthNextPoint (x, y) {
+      if (y > 0) {
+        y--
+        return {
+          x, y, continue: true
+        }
+      } else {
+        return {
+          continue: false
+        }
+      }
+    },
+    // 正南方向查找下一点
+    getSouthNextPoint (x, y) {
+      if (y > 0) {
+        y++
+        return {
+          x, y, continue: true
+        }
+      } else {
+        return {
+          continue: false
+        }
+      }
     }
   }
 }
