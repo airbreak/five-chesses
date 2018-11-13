@@ -1,5 +1,6 @@
 <template>
   <div class="canvas-box">
+    <input type="button" value="开始" @click="start()">
     <canvas id="my-canvas"></canvas>
   </div>
 </template>
@@ -9,41 +10,37 @@ export default {
   name: 'HelloWorld',
   data () {
     return {
+      ctx: null,
       gridNum: 10,
       perGridWidth: 100,
       gridPointsArr: [],
-      attacker: 0, // 出击方，初始默认白棋
-      attackerChessCounts: 1, // 出击方累积连续值
-      // 当前落棋点 方便判断是否赢
-      currentPoint: {
-        x: -1,
-        y: -1
-      },
-      isRedirection: false // 是否已经反向查找了
+      attacker: 1 // 出击方，初始默认白棋
     }
   },
   mounted () {
     this.$nextTick(() => {
-      this.initGridPointsArr()
-      this.initCanvasGrid()
+      this.init()
     })
   },
   methods: {
-    initCanvasGrid () {
+    init () {
       let canvas = document.getElementById('my-canvas')
       canvas.width = canvas.height = this.gridNum * this.perGridWidth
+      canvas.addEventListener('click', this.clickGridToAddChess, false)
       this.ctx = canvas.getContext('2d')
-      // 外框线
+    },
+    initCanvasGrid () {
+      this.drawOuterBorder()
+      this.drawInserBorder()
+    },
+
+    // 外框线
+    drawOuterBorder () {
+      // this.ctx.beginPath()
       this.ctx.lineWidth = 6
       this.ctx.strokeColor = 'rgba(0,0,0,.8)'
       this.ctx.rect(0, 0, this.gridNum * this.perGridWidth, this.gridNum * this.perGridWidth)
       this.ctx.stroke()
-
-      // 内框线
-      this.drawInserBorder()
-      // initChess
-      this.initChess()
-      canvas.addEventListener('click', this.clickGridToAddChess, false)
     },
     drawInserBorder () {
       // 内框线
@@ -62,6 +59,20 @@ export default {
         this.ctx.lineTo(this.gridNum * this.perGridWidth, i * this.perGridWidth)
         this.ctx.stroke()
       }
+    },
+    start () {
+      this.clearCtx()
+      this.attacker = 1 // 出击方，初始默认白棋
+      this.initGridPointsArr()
+      this.initCanvasGrid()
+      this.initChess()
+    },
+    /**
+     * 清理画布
+     */
+    clearCtx () {
+      let width = this.gridNum * this.perGridWidth
+      this.ctx.clearRect(0, 0, width, width)
     },
     /**
      * 初始化两个棋子
@@ -83,14 +94,14 @@ export default {
       for (let i = 0; i < this.gridNum; i++) {
         arr.push([])
         for (let j = 0; j < this.gridNum; j++) {
-          arr[i].push({attacker: -1, drawed: 0})
+          arr[i].push({attacker: 0, drawed: 0})
         }
       }
       this.gridPointsArr = arr
     },
     // 进攻方对换
     swithAttacker () {
-      this.attacker = this.attacker ? 0 : 1 // 进攻方对换
+      this.attacker = this.attacker > 1 ? 1 : 2 // 进攻方对换
     },
     /**
      * 画棋子
@@ -108,12 +119,13 @@ export default {
      * @param {y} int  格子下标
      */
     execDrawChess (x, y) {
-      this.ctx.strokeStyle = ['white', 'black'][this.attacker]
+      this.ctx.strokeStyle = ['white', 'black'][this.attacker - 1]
       this.ctx.fillStyle = this.ctx.strokeStyle
       this.ctx.beginPath()
       this.ctx.arc(x * this.perGridWidth, y * this.perGridWidth, 30, 0, 2 * Math.PI)
       this.ctx.stroke()
       this.ctx.fill()
+      this.ctx.closePath()
     },
     /**
      * 点击方格落棋
@@ -129,16 +141,14 @@ export default {
       diffX = Math.round(diffX)
       diffY = Math.round(diffY)
       if (!this.checkIsDrawedChess(diffX, diffY)) {
-        // 记录单前的落棋点，方便判断是否赢
-        this.currentPoint.x = x
-        this.currentPoint.y = y
-        this.attackerChessCounts = 1 // 累计同颜色棋子个数
-        this.isRedirection = false // 回复未反向查找
         this.drawChess(diffX, diffY, true)
         // 检测是否赢
         let flag = this.checkIsWin(diffX, diffY, 4) // 先检测正西方是否有连续5个同色棋子
         if (flag) {
-          alert('win')
+          let winerArr = ['白棋', '黑棋']
+          window.setTimeout(() => {
+            window.alert(winerArr[this.attacker - 1] + '胜出')
+          }, 100)
           return
         }
       }
@@ -165,129 +175,77 @@ export default {
      * 某个方向数量不够时，则查找反方向，数值继续累积，
      */
     checkIsWin (x, y, direction) {
-      let isWin = false
-      let nextPoint = this.getNextPoint(x, y, direction)
-      // 判断是否反向查找
-      if (!this.isRedirection && !nextPoint.continue) {
-        nextPoint = this.redirectToFindPoint(direction) // 反向查找统计
+      let reg = this.attacker > 1 ? /22222/ : /11111/ // 根据进攻方来选择判断条件
+      // 使用正则表达式进行匹配
+      let lines1 = this.getEastWestLine(x, y).join('')
+      if (reg.test(lines1)) {
+        return true
       }
-      let nextPointInfo = this.gridPointsArr[nextPoint.x][nextPoint.y]
-      let drawed = nextPointInfo.drawed
-      if (drawed) {
-        if (nextPointInfo.attacker === this.attacker) {
-          this.attackerChessCounts++
-          if (this.attackerChessCounts === 5) {
-            isWin = true
-            return isWin
-          } else {
-            return this.checkIsWin(nextPoint.x, nextPoint.y, direction)
-          }
-        }
+      let lines2 = this.getSouthNorthLine(x, y).join('')
+      if (reg.test(lines2)) {
+        return true
       }
-      // 反向查找
-      nextPoint = this.redirectToFindPoint(direction) // 反向查找统计
-      return this.checkIsWin(nextPoint.x, nextPoint.y, direction)
-      // return isWin
+      let line3 = this.getOtherLine(x, y, 1).join('')
+      if (reg.test(line3)) {
+        return true
+      }
+      let line4 = this.getOtherLine(x, y, -1).join('')
+      if (reg.test(line4)) {
+        return true
+      }
+      return false
     },
     /**
-     * 反向查找统计
+     * 获取东西走向的线。当前的点往东取5个(不出边界)，往西取5个(不出边界)
+     * 获取到线上的点，然后把对应点上的绘制信息放到数组中
      */
-    redirectToFindPoint (direction) {
-      this.isRedirection = !this.isRedirection // 标识已反向查找
-      direction += 4
-      return this.getNextPoint(this.currentPoint.x, this.currentPoint.y, direction)
+    getEastWestLine (x, y) {
+      let min = Math.min(this.gridNum - 1, x + 4) // 当前点西边的点
+      let max = Math.max(1, x - 4) // 当前点东边的点
+      let arr = []
+      for (let i = max; i <= min; i++) {
+        let item = this.gridPointsArr[i][y]
+        arr.push(item.attacker)
+      }
+      return arr
     },
     /**
-     * 获取下一点下标
-     * @param {x} int 当前判断点坐标
-     * @param {y} int 当前判断点坐标
-     * @param {direction} int 当前判断方向，已正东开始 逆时针 0~7
-     * */
-    getNextPoint (x, y, direction) {
-      let fn = null
-      switch (direction % 8) {
-        case 0:
-          fn = this.getEastNextPoint
-          break
-        case 1:
-          fn = this.getEastNorthNextPoint
-          break
-        case 2:
-          fn = this.getNorthNextPoint
-          break
-        case 3:
-          fn = this.getWestNorthNextPoint
-          break
-        case 4:
-          fn = this.getWestNextPoint
-          break
-        case 5:
-          fn = this.getWestSouthNextPoint
-          break
-        case 6:
-          fn = this.getSouthNextPoint
-          break
-        default:
-          fn = this.getEastSouthNextPoint
-          break
+     * 获取南北走向的线。当前的点往南取5个(不出边界)，往北取5个(不出边界)
+     * 获取到线上的点，然后把对应点上的绘制信息放到数组中
+     */
+    getSouthNorthLine (x, y) {
+      let min = Math.min(this.gridNum - 1, y + 4) // 当前点西边的点
+      let max = Math.max(1, y - 4) // 当前点东边的点
+      let arr = []
+      for (let i = max; i <= min; i++) {
+        let item = this.gridPointsArr[x][i]
+        arr.push(item.attacker)
       }
-      return fn(x, y)
+      return arr
     },
-    // 正东方向查找下一点
-    getEastNextPoint (x, y) {
-      if (x < this.gridNum) {
-        x++
-        return {
-          x,
-          y,
-          continue: true
+    /**
+     * 获取斜线上的值
+     * 假设 点为 （2, 3）
+     * 则斜率为 -1 的 点一次为：（1,2）（2,3）（3,4）（5,6）（7,8）
+     * 则斜率为 1 的 点一次为：（1,4）（2,3）（3,2）（1,4）
+     */
+    getOtherLine (x, y, gradient = 1) {
+      let diff = gradient > 0 ? x + y : x - y
+      let min = Math.min(this.gridNum - 1, x + 4) // 当前点西边的点
+      let max = Math.max(1, x - 4) // 当前点东边的点
+      let arr = []
+      for (let i = max; i <= min; i++) {
+        let item = null
+        if (gradient > 0) {
+          item = this.gridPointsArr[i][diff - i]
+        } else {
+          item = this.gridPointsArr[i][i - diff]
         }
-      } else {
-        return {
-          continue: false
-        }
-      }
-    },
-    // 正西方向查找下一点
-    getWestNextPoint (x, y) {
-      if (x > 0) {
-        x--
-        return {
-          x,
-          y,
-          continue: true
-        }
-      } else {
-        return {
-          continue: false
+        if (item) {
+          arr.push(item.attacker)
         }
       }
-    },
-    // 正北方向查找下一点
-    getNorthNextPoint (x, y) {
-      if (y > 0) {
-        y--
-        return {
-          x, y, continue: true
-        }
-      } else {
-        return {
-          continue: false
-        }
-      }
-    },
-    // 正南方向查找下一点
-    getSouthNextPoint (x, y) {
-      if (y > 0) {
-        y++
-        return {
-          x, y, continue: true
-        }
-      } else {
-        return {
-          continue: false
-        }
-      }
+      return arr
     }
   }
 }
