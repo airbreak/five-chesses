@@ -8,11 +8,13 @@
 <script>
 export default {
   name: 'HelloWorld',
+  inject: ['App'],
   data () {
     return {
+      canvas: null,
       ctx: null,
-      gridNum: 10,
-      perGridWidth: 100,
+      gridNum: 20,
+      perGridWidth: 50,
       gridPointsArr: [],
       attacker: 1 // 出击方，初始默认白棋
     }
@@ -26,7 +28,7 @@ export default {
     init () {
       let canvas = document.getElementById('my-canvas')
       canvas.width = canvas.height = this.gridNum * this.perGridWidth
-      canvas.addEventListener('click', this.clickGridToAddChess, false)
+      this.canvas = canvas
       this.ctx = canvas.getContext('2d')
     },
     initCanvasGrid () {
@@ -61,6 +63,7 @@ export default {
       }
     },
     start () {
+      this.canvas.addEventListener('click', this.clickGridToAddChess, false)
       this.clearCtx()
       this.attacker = 1 // 出击方，初始默认白棋
       this.initGridPointsArr()
@@ -72,6 +75,7 @@ export default {
      */
     clearCtx () {
       let width = this.gridNum * this.perGridWidth
+      this.canvas.width = this.canvas.height = width // 重新设置高和宽，可以去除上次的残留行为
       this.ctx.clearRect(0, 0, width, width)
     },
     /**
@@ -122,7 +126,7 @@ export default {
       this.ctx.strokeStyle = ['white', 'black'][this.attacker - 1]
       this.ctx.fillStyle = this.ctx.strokeStyle
       this.ctx.beginPath()
-      this.ctx.arc(x * this.perGridWidth, y * this.perGridWidth, 30, 0, 2 * Math.PI)
+      this.ctx.arc(x * this.perGridWidth, y * this.perGridWidth, Math.round(this.perGridWidth / 3), 0, 2 * Math.PI)
       this.ctx.stroke()
       this.ctx.fill()
       this.ctx.closePath()
@@ -147,7 +151,8 @@ export default {
         if (flag) {
           let winerArr = ['白棋', '黑棋']
           window.setTimeout(() => {
-            window.alert(winerArr[this.attacker - 1] + '胜出')
+            this.canvas.removeEventListener('click', this.clickGridToAddChess)
+            window.alert(winerArr[this.attacker - 1] + '胜出，请重新开始')
           }, 100)
           return
         }
