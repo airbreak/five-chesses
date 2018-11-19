@@ -176,8 +176,7 @@ export default {
     },
     /**
      * 检验某方是否胜利
-     * 具体做法：以当前点为中心，确定8个方向 →、东北、↑、西北、←、西南、↓、东南，逆时针判断。是否有颜色一致并且个数连续累加为5
-     * 某个方向数量不够时，则查找反方向，数值继续累积，
+     * 具体做法：以当前点为中心，确定4条线横线、纵线、左斜、右斜 。是否有颜色一致并且个数连续累加为5
      */
     checkIsWin (x, y, direction) {
       let reg = this.attacker > 1 ? /22222/ : /11111/ // 根据进攻方来选择判断条件
@@ -236,7 +235,7 @@ export default {
      */
     getOtherLine (x, y, gradient = 1) {
       let diff = gradient > 0 ? x + y : x - y
-      let min = Math.min(this.gridNum - 1, x + 4) // 当前点西边的点
+      let min = Math.min(this.gridNum - 1, x + 4) // 当前点西边的
       let max = Math.max(1, x - 4) // 当前点东边的点
       let arr = []
       for (let i = max; i <= min; i++) {
